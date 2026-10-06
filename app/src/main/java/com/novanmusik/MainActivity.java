@@ -284,7 +284,7 @@ public class MainActivity extends Activity {
             MediaMetadata.Builder meta = new MediaMetadata.Builder();
             meta.putString(MediaMetadata.METADATA_KEY_TITLE, songName);
             meta.putString(MediaMetadata.METADATA_KEY_ARTIST, currentFolderName);
-            meta.putLong(MediaMetadata.METADATA_DURATION, dur);
+            meta.putLong(MediaMetadata.METADATA_KEY_DURATION, dur);
             mediaSession.setMetadata(meta.build());
             mediaSession.setActive(true);
         }

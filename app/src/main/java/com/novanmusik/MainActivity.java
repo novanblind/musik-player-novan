@@ -23,6 +23,7 @@ import android.media.PlaybackParams;
 import android.media.audiofx.BassBoost;
 import android.media.audiofx.Equalizer;
 import android.media.audiofx.PresetReverb;
+import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.Uri;
@@ -60,9 +61,9 @@ public class MainActivity extends Activity {
     private static final int REQ_NOTIF = 502;
     private static final int NOTIF_ID = 101;
     private static final String CHANNEL_ID = "channel_pemutar_musik";
-    private static final String ACTION_PREV = "com.novanmusik.ACTION_PREV";
-    private static final String ACTION_TOGGLE = "com.novanmusik.ACTION_TOGGLE";
-    private static final String ACTION_NEXT = "com.novanmusik.ACTION_NEXT";
+    private static final String ACTION_PREV = "@@PAKET@@.ACTION_PREV";
+    private static final String ACTION_TOGGLE = "@@PAKET@@.ACTION_TOGGLE";
+    private static final String ACTION_NEXT = "@@PAKET@@.ACTION_NEXT";
 
     private static final String PREFS = "novan_folder_audio_player_prefs";
     private static final String KEY_LAST_PATH = "last_played_path";
@@ -190,9 +191,9 @@ public class MainActivity extends Activity {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= 26 && notificationManager != null) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "Kontrol Musik", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "Kontrol Musik", NotificationManager.IMPORTANCE_DEFAULT);
             ch.setDescription("Menampilkan tombol kontrol lagu di notifikasi dan layar kunci");
-            ch.setShowBadge(false);
+            ch.setShowBadge(true);
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(ch);
         }
@@ -200,6 +201,9 @@ public class MainActivity extends Activity {
 
     private void updateNotification() {
         if (notificationManager == null) return;
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
 
         boolean isPlaying = (player != null && player.isPlaying());
         String songName = (currentIndex >= 0 && currentIndex < visibleSongs.size())
@@ -212,9 +216,17 @@ public class MainActivity extends Activity {
         contentIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pContent = PendingIntent.getActivity(this, 0, contentIntent, flags);
 
-        PendingIntent pPrev = PendingIntent.getBroadcast(this, 1, new Intent(ACTION_PREV), flags);
-        PendingIntent pToggle = PendingIntent.getBroadcast(this, 2, new Intent(ACTION_TOGGLE), flags);
-        PendingIntent pNext = PendingIntent.getBroadcast(this, 3, new Intent(ACTION_NEXT), flags);
+        Intent iPrev = new Intent(ACTION_PREV);
+        iPrev.setPackage(getPackageName());
+        PendingIntent pPrev = PendingIntent.getBroadcast(this, 1, iPrev, flags);
+
+        Intent iToggle = new Intent(ACTION_TOGGLE);
+        iToggle.setPackage(getPackageName());
+        PendingIntent pToggle = PendingIntent.getBroadcast(this, 2, iToggle, flags);
+
+        Intent iNext = new Intent(ACTION_NEXT);
+        iNext.setPackage(getPackageName());
+        PendingIntent pNext = PendingIntent.getBroadcast(this, 3, iNext, flags);
 
         Notification.Builder builder;
         if (Build.VERSION.SDK_INT >= 26) {
@@ -223,9 +235,11 @@ public class MainActivity extends Activity {
             builder = new Notification.Builder(this);
         }
 
+        int appIcon = getApplicationInfo().icon != 0 ? getApplicationInfo().icon : android.R.drawable.ic_media_play;
+
         builder.setContentTitle(songName)
                .setContentText(currentFolderName)
-               .setSmallIcon(android.R.drawable.ic_media_play)
+               .setSmallIcon(appIcon)
                .setContentIntent(pContent)
                .setVisibility(Notification.VISIBILITY_PUBLIC)
                .setOngoing(isPlaying)
@@ -242,9 +256,15 @@ public class MainActivity extends Activity {
             long state = isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
             long pos = (player != null) ? player.getCurrentPosition() : 0;
             mediaSession.setPlaybackState(new PlaybackState.Builder()
-                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
                     .setState((int)state, pos, speed)
                     .build());
+
+            MediaMetadata.Builder meta = new MediaMetadata.Builder();
+            meta.putString(MediaMetadata.METADATA_KEY_TITLE, songName);
+            meta.putString(MediaMetadata.METADATA_KEY_ARTIST, currentFolderName);
+            mediaSession.setMetadata(meta.build());
+            mediaSession.setActive(true);
         }
 
         try {
